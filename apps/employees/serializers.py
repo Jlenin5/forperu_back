@@ -12,7 +12,28 @@ class EmployeeSerializer(serializers.ModelSerializer):
 
   class Meta:
     model = Employee
-    fields = '__all__'
+    fields = [
+      'id',
+      'names',
+      'surname',
+      'second_surname',
+      'photo',
+      'warehouse',
+      'warehouse_id',
+      'document_type',
+      'document_number',
+      'birth_date',
+      'gender',
+      'email',
+      'phone',
+      'address',
+      'hire_date',
+      'job_position',
+      'job_position_id',
+      'documents',
+      'salary',
+      'status'
+    ]
     read_only_fields = ('updated_at', 'created_at', 'deleted_at')
 
   def get_warehouse(self, obj):

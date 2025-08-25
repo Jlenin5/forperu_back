@@ -223,12 +223,16 @@ REST_FRAMEWORK = {
         '%Y-%m-%dT%H:%M:%S.%fZ',
         '%Y-%m-%dT%H:%M:%SZ',
         '%Y-%m-%d %H:%M:%S',
-        '%Y-%m-%d'
+        '%Y-%m-%d',
+        '%d/%m/%Y',
+        '%m/%d/%Y',
     ],
     'DATE_INPUT_FORMATS': [
         '%Y-%m-%d',
         '%Y-%m-%dT%H:%M:%S.%fZ',
-        '%Y-%m-%dT%H:%M:%SZ'
+        '%Y-%m-%dT%H:%M:%SZ',
+        '%d/%m/%Y',
+        '%m/%d/%Y',
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         'rest_framework.permissions.IsAuthenticated',

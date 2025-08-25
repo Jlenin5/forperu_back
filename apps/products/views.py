@@ -22,19 +22,125 @@ from django.db import models
 from utils.parse_excel import parse_excel
 from utils.parse_csv import parse_csv
 
+MAX_LIMIT = 1000
+DEFAULT_LIMIT = 10
+
+def parse_int(value, default=None, minimum=0, maximum=None):
+  try:
+    iv = int(value)
+    if iv < minimum:
+        return minimum
+    if maximum is not None and iv > maximum:
+      return maximum
+    return iv
+  except (TypeError, ValueError):
+    return default
+    
 class ProductsView(APIView):
   permission_classes = [IsAuthenticated]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
 
-  def get(self, request, format=None):
-    products = Product.objects.filter(deleted_at__isnull=True) \
-      .prefetch_related('categories') \
+  def get_base_queryset(self):
+    # Evita traer blobs pesados si no son necesarios
+    qs = (
+      Product.objects
+      .filter(deleted_at__isnull=True)
+      .select_related('unit_of_measurement')  # evita N+1 con FK directa
+      .prefetch_related('categories')         # evita N+1 con M2M
       .annotate(
         total_stock=Coalesce(Sum('stock_controls__current_stock'), Value(0)),
-        total_booking=Coalesce(Sum('stock_controls__current_booking'), Value(0))
+        total_booking=Coalesce(Sum('stock_controls__current_booking'), Value(0)),
       )
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+      .order_by('id')  # orden estable para cursor
+    )
+    # Puedes reducir memoria con only()/defer() si tu serializer lo permite
+    return qs
+
+  def get(self, request, format=None):
+    qs = self.get_base_queryset()
+
+    # --- parámetros de paginación ---
+    limit = parse_int(request.query_params.get('limit'), DEFAULT_LIMIT, minimum=1, maximum=MAX_LIMIT)
+    offset = parse_int(request.query_params.get('offset'), None, minimum=0)
+    after_id = parse_int(request.query_params.get('after_id'), None, minimum=0)
+    # --- parámetros de filtrado/búsqueda ---
+    search = request.query_params.get('search', '').strip()
+    sku = request.query_params.get('sku', '').strip()
+    name = request.query_params.get('name', '').strip()
+    category = request.query_params.get('category', '').strip()
+    unit_of_measurement = request.query_params.get('unit_of_measurement', '').strip()
+
+    # Aplicar filtros
+    if search:
+      qs = qs.filter(
+        models.Q(sku__icontains=search) |
+        models.Q(name__icontains=search) |
+        models.Q(description__icontains=search) |
+        models.Q(categories__name__icontains=search) |
+        models.Q(unit_of_measurement__name__icontains=search)
+      ).distinct()
+    
+    if sku:
+      qs = qs.filter(sku__icontains=sku)
+    
+    if name:
+      qs = qs.filter(name__icontains=name)
+    
+    if category:
+      qs = qs.filter(categories__name__icontains=category)
+    
+    if unit_of_measurement:
+      qs = qs.filter(unit_of_measurement__name__icontains=unit_of_measurement)
+
+    if after_id is not None and offset is not None:
+      # Si te pasan ambos, prioriza cursor (after_id)
+      offset = None
+
+    total = qs.count()
+
+    # Cursor por after_id (más eficiente/estable en datasets enormes)
+    if after_id is not None:
+      page_qs = qs.filter(id__gt=after_id)[:limit]
+    # Paginación clásica por offset
+    elif offset is not None:
+      page_qs = qs[offset: offset + limit]
+    else:
+      # default: primeros N
+      page_qs = qs[:limit]
+
+    serializer = ProductSerializer(page_qs, many=True)
+    results = serializer.data
+
+    # Cálculo de "siguientes"
+    has_more = False
+    next_offset = None
+    next_after_id = None
+
+    if after_id is not None:
+      if results:
+        next_after_id = results[-1]['id']
+        # Hay más si existe algún id mayor al último retornado
+        has_more = qs.filter(id__gt=next_after_id).exists()
+    elif offset is not None:
+      next_offset = (offset or 0) + len(results)
+      has_more = next_offset < total
+    else:
+      # default: arrancaste sin offset; siguiente sería offset=len(results)
+      next_offset = len(results)
+      has_more = next_offset < total
+
+    payload = {
+      "results": results,
+      "count": total,
+      "limit": limit,
+      "has_more": has_more,
+      "next_offset": next_offset,
+      "next_after_id": next_after_id,
+    }
+
+    resp = JsonResponse(payload, status=status.HTTP_200_OK, safe=False)
+    resp['X-Total-Count'] = str(total)
+    return resp
   
 class ProductDetailView(APIView):
   permission_classes = [IsAuthenticated]

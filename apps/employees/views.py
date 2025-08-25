@@ -131,8 +131,7 @@ class EmployeeAPIView(APIView):
         )
 
       updated = existing_employees.update(
-        deleted_at=timezone.now(),
-        updated_by=request.user
+        deleted_at=timezone.now()
       )
 
       return Response({
