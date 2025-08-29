@@ -22,7 +22,7 @@ class EmployeeAPIView(APIView):
       return Response(serializer.data, status=status.HTTP_200_OK)
 
     # Listado de empleados
-    employees = Employee.objects.filter(deleted_at__isnull=True)
+    employees = Employee.objects.filter(deleted_at__isnull=True).order_by('-id')
     serializer = EmployeeSerializer(employees, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 

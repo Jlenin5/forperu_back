@@ -10,6 +10,8 @@ class EmployeeSerializer(serializers.ModelSerializer):
   job_position_id = serializers.IntegerField(required=False, allow_null=True)
   status = serializers.IntegerField()
 
+  lateness_records = serializers.SerializerMethodField()
+
   class Meta:
     model = Employee
     fields = [
@@ -32,7 +34,9 @@ class EmployeeSerializer(serializers.ModelSerializer):
       'job_position_id',
       'documents',
       'salary',
-      'status'
+      'salary_week',
+      'status',
+      'lateness_records',
     ]
     read_only_fields = ('updated_at', 'created_at', 'deleted_at')
 
@@ -45,3 +49,15 @@ class EmployeeSerializer(serializers.ModelSerializer):
     if obj.job_position:
       return JobPositionSerializer(obj.job_position).data
     return None
+  
+  def get_lateness_records(self, obj):
+    records = obj.lateness_set.all()
+    return {
+      str(r.id): {
+        "date": str(r.date),
+        "minutes_late": r.minutes_late,
+        "lives_used": r.lives_used,
+        "discount_amount": r.discount_amount,
+      }
+      for r in records
+    }

@@ -904,21 +904,48 @@ CREATE TABLE IF NOT EXISTS
   `attendances` (
     id INT AUTO_INCREMENT PRIMARY KEY,
     employee_id INT NOT NULL,
-    attendance_type_id INT NOT NULL,
     date DATE NOT NULL,
     check_in TIMESTAMP,
     check_out TIMESTAMP,
-    worked_hours DECIMAL(5, 2),
+    time_worked DECIMAL(5, 2),
     late_minutes SMALLINT DEFAULT 0,
     early_departure_minutes SMALLINT DEFAULT 0,
-    notes TEXT,
-    status VARCHAR(20) CHECK (status IN ('pending', 'approved', 'rejected')) DEFAULT 'pending',
-    approved_by INT,
-    approved_at TIMESTAMP,
+    observation TEXT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT NULL,
-    deleted_at TIMESTAMP DEFAULT NULL,
-    CONSTRAINT unique_employee_date UNIQUE (employee_id, date)
+    deleted_at TIMESTAMP DEFAULT NULL
+  );
+
+  -- Lunches Table
+CREATE TABLE IF NOT EXISTS
+  `lunches` (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    date DATE NOT NULL,
+    start TIMESTAMP,
+    back_to TIMESTAMP,
+    calculated_time DECIMAL(5, 2),
+    late_minutes SMALLINT DEFAULT 0,
+    observation TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT NULL,
+    deleted_at TIMESTAMP DEFAULT NULL
+  );
+
+    -- Lateness Table
+CREATE TABLE IF NOT EXISTS
+  `lateness` (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    employee_id INT NOT NULL,
+    date DATE NOT NULL,
+    start TIMESTAMP,
+    back_to TIMESTAMP,
+    calculated_time DECIMAL(5, 2),
+    late_minutes SMALLINT DEFAULT 0,
+    observation TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT NULL,
+    deleted_at TIMESTAMP DEFAULT NULL
   );
 
 -- Absence Types Table

@@ -45,15 +45,24 @@ class ProductsView(APIView):
     qs = (
       Product.objects
       .filter(deleted_at__isnull=True)
-      .select_related('unit_of_measurement')  # evita N+1 con FK directa
-      .prefetch_related('categories')         # evita N+1 con M2M
+      .select_related('unit_of_measurement', 'brand')  # Incluir brand
+      .prefetch_related('categories__category')        # Prefetch más profundo
       .annotate(
         total_stock=Coalesce(Sum('stock_controls__current_stock'), Value(0)),
         total_booking=Coalesce(Sum('stock_controls__current_booking'), Value(0)),
       )
-      .order_by('id')  # orden estable para cursor
+      .order_by('-id')
+      # Seleccionar solo los campos necesarios
+      .only(
+        'id', 'name', 'sku', 'description', 'handle', 'tags',
+        'featured_image', 'images', 'prices_cf', 'prices_sf', 'prices_box',
+        'featured_pcf', 'featured_psf', 'featured_pbox', 'quantity_in_box',
+        'cost', 'tax_rate', 'quantity', 'width', 'height', 'depth',
+        'liters', 'weight', 'barcode', 'rating', 'extra_shipping_fee',
+        'status', 'created_by', 'updated_by', 'created_at', 'updated_at',
+        'deleted_at', 'brand_id', 'unit_of_measurement_id'
+      )
     )
-    # Puedes reducir memoria con only()/defer() si tu serializer lo permite
     return qs
 
   def get(self, request, format=None):
@@ -63,6 +72,7 @@ class ProductsView(APIView):
     limit = parse_int(request.query_params.get('limit'), DEFAULT_LIMIT, minimum=1, maximum=MAX_LIMIT)
     offset = parse_int(request.query_params.get('offset'), None, minimum=0)
     after_id = parse_int(request.query_params.get('after_id'), None, minimum=0)
+    
     # --- parámetros de filtrado/búsqueda ---
     search = request.query_params.get('search', '').strip()
     sku = request.query_params.get('sku', '').strip()
@@ -70,16 +80,7 @@ class ProductsView(APIView):
     category = request.query_params.get('category', '').strip()
     unit_of_measurement = request.query_params.get('unit_of_measurement', '').strip()
 
-    # Aplicar filtros
-    if search:
-      qs = qs.filter(
-        models.Q(sku__icontains=search) |
-        models.Q(name__icontains=search) |
-        models.Q(description__icontains=search) |
-        models.Q(categories__name__icontains=search) |
-        models.Q(unit_of_measurement__name__icontains=search)
-      ).distinct()
-    
+    # Aplicar filtros individuales primero (más eficiente)
     if sku:
       qs = qs.filter(sku__icontains=sku)
     
@@ -90,11 +91,24 @@ class ProductsView(APIView):
       qs = qs.filter(categories__name__icontains=category)
     
     if unit_of_measurement:
-      qs = qs.filter(unit_of_measurement__name__icontains=unit_of_measurement)
+      # Buscar por ID o nombre de la unidad de medida
+      try:
+        # Intentar buscar por ID si es numérico
+        unit_id = int(unit_of_measurement)
+        qs = qs.filter(unit_of_measurement__id=unit_id)
+      except ValueError:
+        # Buscar por nombre si no es numérico
+        qs = qs.filter(unit_of_measurement__name__icontains=unit_of_measurement)
 
-    if after_id is not None and offset is not None:
-      # Si te pasan ambos, prioriza cursor (after_id)
-      offset = None
+    # Búsqueda general (solo si no hay filtros específicos)
+    if search and not any([sku, name, category, unit_of_measurement]):
+      qs = qs.filter(
+        models.Q(sku__icontains=search) |
+        models.Q(name__icontains=search) |
+        models.Q(description__icontains=search) |
+        models.Q(categories__name__icontains=search) |
+        models.Q(unit_of_measurement__name__icontains=search)
+      ).distinct()
 
     total = qs.count()
 
