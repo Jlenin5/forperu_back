@@ -10,6 +10,7 @@ from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.renderers import BaseRenderer
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from django.utils import timezone
 from django.db.models import Sum, Value
@@ -35,6 +36,16 @@ def parse_int(value, default=None, minimum=0, maximum=None):
     return iv
   except (TypeError, ValueError):
     return default
+
+class XLSXRenderer(BaseRenderer):
+  media_type = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  )
+  format = "xlsx"
+  charset = None  # importante para binarios
+
+  def render(self, data, media_type=None, renderer_context=None):
+    return data
     
 class ProductsView(APIView):
   permission_classes = [IsAuthenticated]
@@ -349,6 +360,7 @@ class ProductCategoriesView(APIView):
     
 class ExportProductsView(APIView):
   permission_classes = [IsAuthenticated]
+  renderer_classes = [XLSXRenderer]
 
   def post(self, request):
     # Decodificar el cuerpo de la solicitud para obtener los IDs

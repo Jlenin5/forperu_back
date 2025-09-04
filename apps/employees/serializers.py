@@ -2,6 +2,7 @@ from rest_framework import serializers
 from apps.employees.models import Employee
 from apps.job_positions.serializers import JobPositionSerializer
 from apps.warehouses.serializers import WarehouseSerializer
+from datetime import date
 
 class EmployeeSerializer(serializers.ModelSerializer):
   warehouse = serializers.SerializerMethodField()
@@ -51,7 +52,12 @@ class EmployeeSerializer(serializers.ModelSerializer):
     return None
   
   def get_lateness_records(self, obj):
-    records = obj.lateness_set.all()
+    today = date.today()
+    # Filtrar solo registros del mes y año actual
+    records = obj.lateness_set.filter(
+        date__year=today.year,
+        date__month=today.month
+    )
     return {
       str(r.id): {
         "date": str(r.date),
