@@ -73,11 +73,10 @@ class ProductSerializer(serializers.ModelSerializer):
       'extra_shipping_fee',
       'status',
       'created_by',
-      'updated_by',
-      'created_at',
-      'updated_at',
-      'deleted_at'
+      'updated_by'
     ]
+
+    read_only_fields = ('updated_at', 'created_at', 'deleted_at')
 
   def get_brand(self, obj):
     if obj.brand:
