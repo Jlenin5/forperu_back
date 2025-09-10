@@ -252,11 +252,15 @@ class DeleteProductsByIdsView(APIView):
     try:
       product_ids = request.data if isinstance(request.data, list) else request.data.get('ids', [])
 
+      # Si el array está vacío, eliminar TODOS los productos definitivamente
       if not product_ids:
-        return Response(
-          {'error': 'No se proporcionaron IDs de productos'},
-          status=status.HTTP_400_BAD_REQUEST
-        )
+        # Eliminar físicamente todos los productos
+        deleted_count, _ = Product.objects.all().delete()
+        return Response({
+          'message': f'Todos los productos ({deleted_count}) eliminados físicamente',
+          'deleted_count': deleted_count,
+          'mode': 'hard_delete_all'
+        }, status=status.HTTP_200_OK)
 
       # Convertir a enteros
       try:
