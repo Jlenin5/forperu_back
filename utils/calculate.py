@@ -6,74 +6,14 @@ class PriceType(Enum):
   SF = "SF"
   BOX = "BOX"
 
-# Margenes de precio (similar al PriceMargins en Go)
+# Generar márgenes dinámicamente (1% → 70%)
+def generate_price_margins():
+  return {f"price_{i}": 1 + (i / 100) for i in range(1, 71)}
+
 PRICE_MARGINS = {
-  "CF": {
-    "price_1": 1.01,
-    "price_2": 1.02,
-    "price_3": 1.03,
-    "price_4": 1.04,
-    "price_5": 1.05,
-    "price_6": 1.06,
-    "price_7": 1.07,
-    "price_8": 1.08,
-    "price_9": 1.09,
-    "price_10": 1.10,
-    "price_11": 1.11,
-    "price_12": 1.12,
-    "price_13": 1.13,
-    "price_14": 1.14,
-    "price_15": 1.15,
-    "price_16": 1.16,
-    "price_17": 1.17,
-    "price_18": 1.18,
-    "price_19": 1.19,
-    "price_20": 1.2
-  },
-  "SF": {
-    "price_1": 1.01,
-    "price_2": 1.02,
-    "price_3": 1.03,
-    "price_4": 1.04,
-    "price_5": 1.05,
-    "price_6": 1.06,
-    "price_7": 1.07,
-    "price_8": 1.08,
-    "price_9": 1.09,
-    "price_10": 1.10,
-    "price_11": 1.11,
-    "price_12": 1.12,
-    "price_13": 1.13,
-    "price_14": 1.14,
-    "price_15": 1.15,
-    "price_16": 1.16,
-    "price_17": 1.17,
-    "price_18": 1.18,
-    "price_19": 1.19,
-    "price_20": 1.2
-  },
-  "BOX": {
-    "price_1": 1.01,
-    "price_2": 1.02,
-    "price_3": 1.03,
-    "price_4": 1.04,
-    "price_5": 1.05,
-    "price_6": 1.06,
-    "price_7": 1.07,
-    "price_8": 1.08,
-    "price_9": 1.09,
-    "price_10": 1.10,
-    "price_11": 1.11,
-    "price_12": 1.12,
-    "price_13": 1.13,
-    "price_14": 1.14,
-    "price_15": 1.15,
-    "price_16": 1.16,
-    "price_17": 1.17,
-    "price_18": 1.18,
-    "price_19": 1.19,
-    "price_20": 1.2
-  }
+  "CF": generate_price_margins(),
+  "SF": generate_price_margins(),
+  "BOX": generate_price_margins()
 }
 
 def calculate_prices(prices, price_type, cost):
@@ -87,7 +27,7 @@ def calculate_prices(prices, price_type, cost):
   for p in prices:
     margin = PRICE_MARGINS[margin_type].get(p['name'], 1.01)  # Margen por defecto
     
-    if price_type == PriceType.CF:
+    if price_type == PriceType.CF.value:
       calculated_price = (((cost / 1.18) * 1.06 * margin) * 1.18)
     else:
       calculated_price = cost * margin
@@ -99,6 +39,29 @@ def calculate_prices(prices, price_type, cost):
     })
   
   return result
+
+def generate_all_prices(cost):
+  prices_cf = [
+    {"id": i, "name": f"price_{i}", "price": (((cost / 1.18) * 1.06 * (1 + i / 100)) * 1.18)}
+    for i in range(1, 71)
+  ]
+  prices_sf = [
+    {"id": i, "name": f"price_{i}", "price": cost * (1 + i / 100)}
+    for i in range(1, 71)
+  ]
+  prices_box = [
+    {"id": i, "name": f"price_{i}", "price": cost * (1 + i / 100)}
+    for i in range(1, 71)
+  ]
+
+  return {
+    "prices_cf": prices_cf,
+    "prices_sf": prices_sf,
+    "prices_box": prices_box,
+    "featured_pcf": prices_cf[0]["price"],  # por defecto el 1%
+    "featured_psf": prices_sf[0]["price"],
+    "featured_pbox": prices_box[0]["price"]
+  }
 
 def find_price_by_name(prices, name):
   for price in prices:
