@@ -22,7 +22,7 @@ class EmployeeIncident(models.Model):
     db_column='employee_id',
     related_name='incidents'
   )
-  incident_type = models.CharField(max_length=50)
+  incident_type = models.CharField(max_length=300)
   incident_date = models.DateField()
   observation = models.TextField(null=True, blank=True)
   discount = models.DecimalField(max_digits=14, decimal_places=2)
