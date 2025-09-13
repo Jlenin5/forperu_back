@@ -21,7 +21,7 @@ class CustomerAPIView(APIView):
       return Response(serializer.data, status=status.HTTP_200_OK)
 
     # Listado de clientes
-    customers = Customer.objects.filter(deleted_at__isnull=True)
+    customers = Customer.objects.filter(deleted_at__isnull=True).order_by('-id')
     serializer = CustomerSerializer(customers, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 

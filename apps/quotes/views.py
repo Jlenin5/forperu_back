@@ -19,14 +19,14 @@ class QuoteAPIView(APIView):
       serializer = QuoteSerializer(quote)
       return Response(serializer.data, status=status.HTTP_200_OK)
 
-    quotes = Quote.objects.filter(deleted_at__isnull=True)
+    quotes = Quote.objects.filter(deleted_at__isnull=True).order_by("-id")
     serializer = QuoteSerializer(quotes, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
 
   def post(self, request, format=None):
     serializer = QuoteSerializer(data=request.data)
     if serializer.is_valid():
-      serializer.save(created_by=request.user)
+      serializer.save()
       return Response(serializer.data, status=status.HTTP_201_CREATED)
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -83,7 +83,6 @@ class QuoteAPIView(APIView):
     except Exception as e:
       traceback.print_exc()
       return Response({'error': f'Error al eliminar cotizaciones: {str(e)}'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
-
 
 class QuoteDetailAPIView(APIView):
   permission_classes = [IsAuthenticated]

@@ -47,6 +47,25 @@ class XLSXRenderer(BaseRenderer):
   def render(self, data, media_type=None, renderer_context=None):
     return data
     
+class ProductsMinimalView(APIView):
+  permission_classes = [IsAuthenticated]
+
+  def get(self, request, format=None):
+    qs = (
+      Product.objects
+      .filter(deleted_at__isnull=True)
+      # .only('id', 'name', 'sku', 'prices_cf', 'prices_sf', 'prices_box')
+      .order_by('name')
+    )
+
+    # Filtro opcional de búsqueda rápida
+    search = request.query_params.get('search', '').strip()
+    if search:
+      qs = qs.filter(models.Q(name__icontains=search) | models.Q(sku__icontains=search))
+
+    serializer = ProductSerializer(qs[:50], many=True)  # límite 50 resultados
+    return Response(serializer.data, status=status.HTTP_200_OK)
+    
 class ProductsView(APIView):
   permission_classes = [IsAuthenticated]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
