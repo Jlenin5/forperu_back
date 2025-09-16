@@ -125,3 +125,10 @@ class ProductSerializer(serializers.ModelSerializer):
       deleted_at__isnull=True
     ).aggregate(total_booking=Sum('current_booking'))['total_booking'] or 0
     return booking
+  
+  def validate_prices_cf(self, value):
+    # Validar que cada elemento tenga percentage
+    for item in value:
+      if 'percentage' not in item:
+        raise serializers.ValidationError("Cada precio debe tener un porcentaje")
+    return value

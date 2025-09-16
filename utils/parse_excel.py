@@ -14,33 +14,26 @@ def parse_excel(file, user_id):
     header_map = {header: idx for idx, header in enumerate(headers) if header}
     
     # Validar encabezados requeridos
-    required_headers = ["Codigo", "Nombre", "Precio(CF)", "Precio(SF)", "Precio(Caja)", "Costo", "Unidad"]
+    required_headers = [
+      "Codigo", "Nombre",
+      "P.(CF) %", "P.(SF) %", "P.(Caja) %", "Costo",
+      "Unidad"
+      ]
     for req in required_headers:
       if req not in header_map:
         raise ValueError(f"Falta el encabezado requerido: {req}")
     
-    # Simulación de precios originales (similar al código Go)
+    # Definir el rango progresivo de porcentajes
+    percentage_sequence = [
+      1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16,
+      20, 24, 26, 28, 30, 32, 34, 37,
+      40, 43, 46, 49, 52, 55, 58, 61, 64, 67, 70
+    ]
+
+    # Generar lista de precios dinámicamente
     prices = [
-      {"id": 1, "name": "price_1"},
-      {"id": 2, "name": "price_2"},
-      {"id": 3, "name": "price_3"},
-      {"id": 4, "name": "price_4"},
-      {"id": 5, "name": "price_5"},
-      {"id": 6, "name": "price_6"},
-      {"id": 7, "name": "price_7"},
-      {"id": 8, "name": "price_8"},
-      {"id": 9, "name": "price_9"},
-      {"id": 10, "name": "price_10"},
-      {"id": 11, "name": "price_11"},
-      {"id": 12, "name": "price_12"},
-      {"id": 13, "name": "price_13"},
-      {"id": 14, "name": "price_14"},
-      {"id": 15, "name": "price_15"},
-      {"id": 16, "name": "price_16"},
-      {"id": 17, "name": "price_17"},
-      {"id": 18, "name": "price_18"},
-      {"id": 19, "name": "price_19"},
-      {"id": 20, "name": "price_20"},
+      {"id": pct, "name": f"price_{pct}", "percentage": pct}
+      for idx, pct in enumerate(percentage_sequence)
     ]
     
     # Iterar sobre las filas
@@ -65,9 +58,9 @@ def parse_excel(file, user_id):
         except (ValueError, TypeError):
           return 0.0
         
-      price_cf = get_featured_price(PriceType.CF, "Precio(CF)", calculated_cf)
-      price_sf = get_featured_price(PriceType.SF, "Precio(SF)", calculated_sf)
-      price_box = get_featured_price(PriceType.BOX, "Precio(Caja)", calculated_box)
+      price_cf = get_featured_price(PriceType.CF, "P.(CF) %", calculated_cf)
+      price_sf = get_featured_price(PriceType.SF, "P.(SF) %", calculated_sf)
+      price_box = get_featured_price(PriceType.BOX, "P.(Caja) %", calculated_box)
         
         # Crear producto
       product = {
@@ -76,9 +69,9 @@ def parse_excel(file, user_id):
         "prices_cf": calculated_cf,
         "prices_sf": calculated_sf,
         "prices_box": calculated_box,
-        "featured_pcf": price_cf if row[header_map["Precio(CF)"]] else None,
-        "featured_psf": price_sf if row[header_map["Precio(SF)"]] else None,
-        "featured_pbox": price_box if row[header_map["Precio(Caja)"]] else None,
+        "featured_pcf": price_cf if row[header_map["P.(CF) %"]] else None,
+        "featured_psf": price_sf if row[header_map["P.(SF) %"]] else None,
+        "featured_pbox": price_box if row[header_map["P.(Caja) %"]] else None,
         "unit": row[header_map["Unidad"]],
         "cost": cost,
         "created_by": user_id

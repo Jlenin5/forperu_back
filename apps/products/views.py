@@ -393,7 +393,12 @@ class ExportProductsView(APIView):
     sheet.title = "Productos"
 
     # Agregar encabezados
-    headers = ["Codigo", "Nombre", "Precio(CF)", "Precio(SF)", "Precio(Caja)", "Ctd. en caja", "Unidad de medida"]
+    headers = [
+      "Codigo", "Nombre",
+      "P.(CF) %", "P.(SF) %", "P.(Caja) %", "Costo",
+      "Unidad", "Unidad de medida", "Ctd. en caja",
+      "P.(CF) S/", "P.(SF) S/", "P.(Caja) S/"
+      ]
     sheet.append(headers)
 
     # Estilo para los encabezados
@@ -412,17 +417,48 @@ class ExportProductsView(APIView):
       psf = product.featured_psf if product.featured_psf is not None else 0.0
       pbox = product.featured_pbox if product.featured_pbox is not None else 0.0
       qtBox = product.quantity_in_box if product.quantity_in_box is not None else 0
-      unit = product.unit_of_measurement.name if product.unit_of_measurement else ""
+      unit = (product.unit_of_measurement.shortcut).upper() if product.unit_of_measurement else ""
+      unitOfMeasurement = (product.unit_of_measurement.name).upper() if product.unit_of_measurement else ""
+
+      # --- Buscar porcentaje asociado ---
+      def get_percentage(prices_json, featured_price):
+        if not prices_json or featured_price is None:
+          return ""
+        try:
+          # Caso 1: es un dict {"price_10": 1.10, "price_15": 1.15}
+          if isinstance(prices_json, dict):
+            for key, value in prices_json.items():
+              if float(value) == float(featured_price):
+                return key.replace("price_", "")
+          
+          # Caso 2: es una lista [{"id": 1, "name": "price_10", "price": 55.0}, ...]
+          if isinstance(prices_json, list):
+            for entry in prices_json:
+              name = entry.get("name")
+              value = entry.get("price")
+              if value is not None and float(value) == float(featured_price):
+                return name.replace("price_", "")
+        except Exception:
+          return ""
+        return ""
+
+      value_percentage_cf = get_percentage(product.prices_cf, product.featured_pcf)
+      value_percentage_sf = get_percentage(product.prices_sf, product.featured_psf)
+      value_percentage_box = get_percentage(product.prices_box, product.featured_pbox)
 
       row = [
         sku,
         product.name,
+        value_percentage_cf,
+        value_percentage_sf,
+        value_percentage_box,
+        f"{product.cost:.2f}",
+        unit,
+        unitOfMeasurement,
         f"{pcf:.2f}",
         f"{psf:.2f}",
         f"{pbox:.2f}",
         f"{qtBox:.2f}",
-        # f"{product.cost:.2f}",
-        unit
       ]
 
       sheet.append(row)

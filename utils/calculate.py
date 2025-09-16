@@ -6,9 +6,22 @@ class PriceType(Enum):
   SF = "SF"
   BOX = "BOX"
 
+# Reglas de incremento progresivo
+INCREMENT_RULES = [
+  {"start": 1, "end": 6, "step": 1},   # 1–6 en saltos de 1
+  {"start": 6, "end": 34, "step": 2},  # 6–34 en saltos de 2
+  {"start": 34, "end": 70, "step": 3}, # 34–70 en saltos de 3
+]
+
 # Generar márgenes dinámicamente (1% → 70%)
 def generate_price_margins():
-  return {f"price_{i}": 1 + (i / 100) for i in range(1, 71)}
+  margins = {}
+  for rule in INCREMENT_RULES:
+    i = rule["start"]
+    while i <= rule["end"]:
+      margins[f"price_{i}"] = 1 + (i / 100)
+      i += rule["step"]
+  return margins
 
 PRICE_MARGINS = {
   "CF": generate_price_margins(),
@@ -25,7 +38,9 @@ def calculate_prices(prices, price_type, cost):
     return result
   
   for p in prices:
-    margin = PRICE_MARGINS[margin_type].get(p['name'], 1.01)  # Margen por defecto
+    margin = PRICE_MARGINS[margin_type].get(p['name'])
+    if not margin:
+      continue
     
     if price_type == PriceType.CF.value:
       calculated_price = (((cost / 1.18) * 1.06 * margin) * 1.18)
@@ -42,25 +57,25 @@ def calculate_prices(prices, price_type, cost):
 
 def generate_all_prices(cost):
   prices_cf = [
-    {"id": i, "name": f"price_{i}", "price": (((cost / 1.18) * 1.06 * (1 + i / 100)) * 1.18)}
-    for i in range(1, 71)
+    {"id": idx, "name": name, "price": (((cost / 1.18) * 1.06 * margin) * 1.18)}
+    for idx, (name, margin) in enumerate(PRICE_MARGINS["CF"].items(), start=1)
   ]
   prices_sf = [
-    {"id": i, "name": f"price_{i}", "price": cost * (1 + i / 100)}
-    for i in range(1, 71)
+    {"id": idx, "name": name, "price": cost * margin}
+    for idx, (name, margin) in enumerate(PRICE_MARGINS["SF"].items(), start=1)
   ]
   prices_box = [
-    {"id": i, "name": f"price_{i}", "price": cost * (1 + i / 100)}
-    for i in range(1, 71)
+    {"id": idx, "name": name, "price": cost * margin}
+    for idx, (name, margin) in enumerate(PRICE_MARGINS["BOX"].items(), start=1)
   ]
 
   return {
     "prices_cf": prices_cf,
     "prices_sf": prices_sf,
     "prices_box": prices_box,
-    "featured_pcf": prices_cf[0]["price"],  # por defecto el 1%
-    "featured_psf": prices_sf[0]["price"],
-    "featured_pbox": prices_box[0]["price"]
+    "featured_pcf": prices_cf[0]["price"] if prices_cf else None,
+    "featured_psf": prices_sf[0]["price"] if prices_sf else None,
+    "featured_pbox": prices_box[0]["price"] if prices_box else None
   }
 
 def find_price_by_name(prices, name):
