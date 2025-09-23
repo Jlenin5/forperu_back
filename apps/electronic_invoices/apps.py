@@ -1,6 +1,6 @@
 from django.apps import AppConfig
 
 
-class SalesConfig(AppConfig):
+class ElectronicInvoicesConfig(AppConfig):
     default_auto_field = 'django.db.models.BigAutoField'
-    name = 'apps.sales'
+    name = 'apps.electronic_invoices'

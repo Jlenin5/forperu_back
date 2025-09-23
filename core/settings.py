@@ -85,6 +85,13 @@ PROJECT_APPS = [
     'apps.systems',
     'apps.lunches',
     'apps.lateness',
+    'apps.sale_orders',
+    'apps.sales',
+    'apps.purchase_requests',
+    'apps.electronic_invoicing_providers',
+    'apps.electronic_invoices',
+    'apps.plans',
+    'apps.subscriptions'
 ]
 
 THIRD_PARTY_APPS = [

@@ -1,25 +1,27 @@
 from rest_framework import serializers
 from apps.currencies.serializers import CurrencySerializer
-from apps.quotes.models import Quote, QuoteDetail
-from apps.companies.serializers import CompanySerializer
+from apps.sale_orders.models import SaleOrder, SaleOrderDetail
 from apps.warehouses.serializers import WarehouseSerializer
 from apps.customers.serializers import CustomerSerializer
 from apps.users.serializers import UserSerializer
 from apps.products.serializers import ProductSerializer
+from apps.quotes.serializers import QuoteSerializer
 
-class QuoteDetailSerializer(serializers.ModelSerializer):
+class SaleOrderDetailSerializer(serializers.ModelSerializer):
   product = serializers.SerializerMethodField()
   product_id = serializers.IntegerField(required=False, allow_null=True)
 
   class Meta:
-    model = QuoteDetail
+    model = SaleOrderDetail
     fields = [
       'id',
-      'quote_id',
+      'sale_order_id',
       'product',
       'product_id',
+      'product_name',
       'quantity',
       'price',
+      'discount_method',
       'discount',
       'subtotal',
       'total'
@@ -33,20 +35,22 @@ class QuoteDetailSerializer(serializers.ModelSerializer):
       return ProductSerializer(obj.product).data
     return None
 
-class QuoteSerializer(serializers.ModelSerializer):
+class SaleOrderSerializer(serializers.ModelSerializer):
   warehouse = serializers.SerializerMethodField()
-  warehouse_id = serializers.IntegerField(required=False, allow_null=True)
+  warehouse_id = serializers.IntegerField(required=True)
   customer = serializers.SerializerMethodField()
-  customer_id = serializers.IntegerField(required=False, allow_null=True)
+  customer_id = serializers.IntegerField(required=True)
   currency = serializers.SerializerMethodField()
-  currency_id = serializers.IntegerField(required=False, allow_null=True)
+  currency_id = serializers.IntegerField(required=True)
   user = serializers.SerializerMethodField()
   user_id = serializers.IntegerField(required=False, allow_null=True)
+  quote = serializers.SerializerMethodField()
+  quote_id = serializers.IntegerField(required=False, allow_null=True)
 
-  quote_details = QuoteDetailSerializer(many=True)
+  sale_order_details = SaleOrderDetailSerializer(many=True)
 
   class Meta:
-    model = Quote
+    model = SaleOrder
     fields = [
       'id',
       'reference',
@@ -60,17 +64,15 @@ class QuoteSerializer(serializers.ModelSerializer):
       'user_id',
       'issue_date',
       'exchange_rate',
-      'expiration_date',
-      'approved_by',
-      'approved_at',
-      'canceled_by',
-      'canceled_at',
       'discount',
       'subtotal',
       'total',
-      'quote_status',
-      'migrate_quote',
-      'quote_details'
+      'order_status',
+      'date_approved',
+      'migrate_sale_order',
+      'quote',
+      'quote_id',
+      'sale_order_details'
     ]
 
     read_only_fields = ('reference', 'updated_at', 'created_at', 'deleted_at')
@@ -99,21 +101,27 @@ class QuoteSerializer(serializers.ModelSerializer):
       return UserSerializer(obj.user).data
     return None
   
+  def get_quote(self, obj):
+    if obj.quote:
+      QuoteSerializer.Meta.model = obj.quote.__class__
+      return QuoteSerializer(obj.quote).data
+    return None
+  
   def create(self, validated_data):
-    details_data = validated_data.pop("quote_details", [])
-    quote = Quote.objects.create(**validated_data)
+    details_data = validated_data.pop("sale_order_details", [])
+    sale_order = SaleOrder.objects.create(**validated_data)
     for detail_data in details_data:
-      QuoteDetail.objects.create(quote=quote, **detail_data)
-    return quote
+      SaleOrderDetail.objects.create(sale_order=sale_order, **detail_data)
+    return sale_order
 
   def update(self, instance, validated_data):
-    details_data = validated_data.pop("quote_details", [])
+    details_data = validated_data.pop("sale_order_details", [])
     for attr, value in validated_data.items():
       setattr(instance, attr, value)
     instance.save()
 
     # actualizar detalles (simplificado: borra y vuelve a crear)
-    instance.quote_details.all().delete()
+    instance.sale_order_details.all().delete()
     for detail_data in details_data:
-      QuoteDetail.objects.create(quote=instance, **detail_data)
+      SaleOrderDetail.objects.create(sale_order=instance, **detail_data)
     return instance

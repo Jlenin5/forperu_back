@@ -1,12 +1,12 @@
 from django.db import models
-
+from django.db.models import Max
 from apps.currencies.models import Currency
 from apps.customers.models import Customer
 from apps.products.models import Product
 from apps.warehouses.models import Warehouse
 
 class Quote(models.Model):
-  reference = models.CharField(max_length=8)
+  reference = models.CharField(max_length=8, unique=True, blank=True)
   warehouse = models.ForeignKey(
     Warehouse,
     on_delete=models.SET_NULL,
@@ -35,9 +35,9 @@ class Quote(models.Model):
     blank=True,
     related_name='quotes_created'
   )
-  issue_date = models.DateTimeField(auto_now_add=True)
+  issue_date = models.DateField(auto_now_add=True)
   exchange_rate = models.DecimalField(max_digits=10, decimal_places=4, default=1)
-  expiration_date = models.DateTimeField(null=True, blank=True)
+  expiration_date = models.DateField(null=True, blank=True)
 
   approved_by = models.ForeignKey(
     'users.UserAccount',
@@ -84,7 +84,24 @@ class Quote(models.Model):
 
   def __str__(self):
     return f"{self.reference} - {self.customer}"
+  
+  def generate_reference(self):
+    last_ref = Quote.objects.aggregate(max_ref=Max("reference"))["max_ref"]
 
+    last_number = 0
+    if last_ref:
+      try:
+        last_number = int(last_ref.split("-")[1])
+      except (IndexError, ValueError):
+        last_number = 0
+
+    new_number = last_number + 1
+    return f"CT-{new_number:05d}"
+
+  def save(self, *args, **kwargs):
+    if not self.reference:
+      self.reference = self.generate_reference()
+    super().save(*args, **kwargs)
 
 class QuoteDetail(models.Model):
   product_name = models.CharField(max_length=150, null=True, blank=True)
@@ -92,7 +109,7 @@ class QuoteDetail(models.Model):
     Quote,
     on_delete=models.CASCADE,
     db_column='quote_id',
-    related_name='details'
+    related_name='quote_details'
   )
   product = models.ForeignKey(
     Product,

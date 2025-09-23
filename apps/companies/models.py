@@ -1,4 +1,5 @@
 from django.db import models
+from apps.electronic_invoicing_providers.models import ElectronicInvoicingProvider
 
 # Create your models here.
 class Company(models.Model):
@@ -10,6 +11,15 @@ class Company(models.Model):
   web_site = models.CharField(max_length=100, null=True, blank=True)
   address = models.TextField(null=True, blank=True)
   status = models.BooleanField(default=1)
+  # Proveedor de facturación electrónica
+  electronic_invoicing_provider = models.ForeignKey(
+    ElectronicInvoicingProvider,
+    on_delete=models.SET_NULL,
+    null=True,
+    blank=True,
+    db_column="electronic_invoicing_provider_id",
+    related_name="companies"
+  )
   created_by = models.ForeignKey(
     'users.UserAccount',
     on_delete=models.CASCADE,

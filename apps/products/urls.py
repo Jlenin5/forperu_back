@@ -1,5 +1,6 @@
 from django.urls import re_path
 from .views import (
+  ProductsMinimalView,
   ProductsView,
   ProductDetailView,
   CreateProductView,
@@ -11,6 +12,7 @@ from .views import (
 )
 
 urlpatterns = [
+  re_path(r'^products/minimal/?$', ProductsMinimalView.as_view(), name='products-minimal'),
   re_path(r'^products/?$', ProductsView.as_view(), name='products-list'),
   re_path(r'^products/(?P<pk>\d+)/?$', ProductDetailView.as_view(), name='product-detail'),
   re_path(r'^products/create/?$', CreateProductView.as_view(), name='product-create'),
