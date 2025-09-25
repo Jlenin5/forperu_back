@@ -2,7 +2,7 @@ import traceback
 from django.shortcuts import get_object_or_404
 from rest_framework.views import APIView
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.decorators import action
 from apps.categories.models import Category
@@ -11,8 +11,12 @@ from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from django.utils import timezone
 
 class CategoryAPIView(APIView):
-  permission_classes = [IsAuthenticated]
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
+
 
   def get(self, request, pk=None, format=None):
     if pk:
