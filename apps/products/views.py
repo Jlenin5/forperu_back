@@ -9,6 +9,7 @@ from openpyxl.utils import get_column_letter
 from rest_framework.views import APIView
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
@@ -67,7 +68,7 @@ class ProductsMinimalView(APIView):
     return Response(serializer.data, status=status.HTTP_200_OK)
     
 class ProductsView(APIView):
-  permission_classes = [IsAuthenticated]
+  permission_classes = [AllowAny]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
 
   def get_base_queryset(self):
@@ -76,7 +77,7 @@ class ProductsView(APIView):
       Product.objects
       .filter(deleted_at__isnull=True)
       .select_related('unit_of_measurement', 'brand')  # Incluir brand
-      .prefetch_related('categories__category')        # Prefetch más profundo
+      .prefetch_related("categories")        # Prefetch más profundo
       .annotate(
         total_stock=Coalesce(Sum('stock_controls__current_stock'), Value(0)),
         total_booking=Coalesce(Sum('stock_controls__current_booking'), Value(0)),
@@ -107,7 +108,7 @@ class ProductsView(APIView):
     search = request.query_params.get('search', '').strip()
     sku = request.query_params.get('sku', '').strip()
     name = request.query_params.get('name', '').strip()
-    category = request.query_params.get('category', '').strip()
+    category_param = request.query_params.get('category', '').strip()
     unit_of_measurement = request.query_params.get('unit_of_measurement', '').strip()
 
     # Aplicar filtros individuales primero (más eficiente)
@@ -117,8 +118,10 @@ class ProductsView(APIView):
     if name:
       qs = qs.filter(name__icontains=name)
     
-    if category:
-      qs = qs.filter(categories__name__icontains=category)
+    if category_param:
+      category_names = [c.strip() for c in category_param.split(',') if c.strip()]
+      if category_names:
+          qs = qs.filter(categories__name__in=category_names).distinct()
     
     if unit_of_measurement:
       # Buscar por ID o nombre de la unidad de medida
@@ -131,7 +134,7 @@ class ProductsView(APIView):
         qs = qs.filter(unit_of_measurement__name__icontains=unit_of_measurement)
 
     # Búsqueda general (solo si no hay filtros específicos)
-    if search and not any([sku, name, category, unit_of_measurement]):
+    if search and not any([sku, name, category_param, unit_of_measurement]):
       qs = qs.filter(
         models.Q(sku__icontains=search) |
         models.Q(name__icontains=search) |
@@ -187,7 +190,7 @@ class ProductsView(APIView):
     return resp
   
 class ProductDetailView(APIView):
-  permission_classes = [IsAuthenticated]
+  permission_classes = [AllowAny]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
 
   def get(self, request, pk, format=None):
