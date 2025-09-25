@@ -561,3 +561,18 @@ class ImportProductsView(APIView):
 
     except Exception as e:
       return JsonResponse({'error': str(e)}, status=400)
+
+
+class MostRatedProductsView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True).order_by('-rating')
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+  
