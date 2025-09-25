@@ -576,3 +576,15 @@ class MostRatedProductsView(APIView):
     serializer = ProductSerializer(qs, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
   
+class ProductCategoryView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, category_id, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True, categories__id=category_id).distinct()
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)

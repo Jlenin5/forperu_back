@@ -10,6 +10,7 @@ from .views import (
   ExportProductsView,
   MostSoldProductsView,
   MostRatedProductsView,
+  ProductCategoryView,
 )
 
 urlpatterns = [
@@ -23,4 +24,5 @@ urlpatterns = [
   re_path(r'^products/export-excel/?$', ExportProductsView.as_view(), name='product-export'),
   re_path(r'^products/most-sold/?$', MostSoldProductsView.as_view(), name='product-most-sold'),
   re_path(r'^products/most-rated/?$', MostRatedProductsView.as_view(), name='product-most-rated'),
+  re_path(r'^products/category/(?P<category_id>\d+)/?$', ProductCategoryView.as_view(), name='product-category'),
 ]
