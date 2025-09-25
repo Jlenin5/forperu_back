@@ -85,6 +85,7 @@ PROJECT_APPS = [
     'apps.systems',
     'apps.lunches',
     'apps.lateness',
+    'apps.banners',
 ]
 
 THIRD_PARTY_APPS = [

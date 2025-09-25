@@ -52,3 +52,6 @@ media/
 *.seed
 *.pid.lock
 docker-compose.override.yml
+/.dbdata
+*.pyc
+/apps/payment_methods/migrations/__pycache__

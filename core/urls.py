@@ -47,4 +47,5 @@ urlpatterns = [
   path('api/', include("apps.systems.urls")),
   path('api/', include("apps.lunches.urls")),
   path('api/', include("apps.lateness.urls")),
+  path('api/', include("apps.banners.urls")),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 
