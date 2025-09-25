@@ -8,6 +8,7 @@ from .views import (
   DeleteProductsByIdsView,
   ImportProductsView,
   ExportProductsView,
+  MostSoldProductsView,
 )
 
 urlpatterns = [
@@ -19,4 +20,5 @@ urlpatterns = [
   re_path(r'^products/delete/?$', DeleteProductsByIdsView.as_view(), name='product-delete'),
   re_path(r'^products/import-excel/?$', ImportProductsView.as_view(), name='product-import'),
   re_path(r'^products/export-excel/?$', ExportProductsView.as_view(), name='product-export'),
+  re_path(r'^products/most-sold/?$', MostSoldProductsView.as_view(), name='product-most-sold'),
 ]
