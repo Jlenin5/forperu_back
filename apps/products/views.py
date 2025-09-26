@@ -572,7 +572,7 @@ class MostRatedProductsView(APIView):
   parser_classes = [JSONParser, FormParser, MultiPartParser]
   
   def get(self, request, format=None):
-    qs = Product.objects.filter(deleted_at__isnull=True).order_by('-rating')
+    qs = Product.objects.filter(deleted_at__isnull=True).order_by('-rating')[:10]
     serializer = ProductSerializer(qs, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
   
@@ -585,6 +585,28 @@ class ProductCategoryView(APIView):
   parser_classes = [JSONParser, FormParser, MultiPartParser]
   
   def get(self, request, category_id, format=None):
-    qs = Product.objects.filter(deleted_at__isnull=True, categories__id=category_id).distinct()
+    qs = Product.objects.filter(deleted_at__isnull=True, categories__id=category_id).distinct()[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+class ProductsRelatedView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, product_id, format=None):
+    qs = Product.objects.filter(
+        deleted_at__isnull=True,
+        categories__product_categories__product_id=product_id
+      ).exclude(id=product_id).annotate(
+        shared=models.Count(
+          'categories',
+          filter=models.Q(categories__product_categories__product_id=product_id),
+          distinct=True
+        )
+      ).order_by('-shared', '-id').distinct()[:10]
     serializer = ProductSerializer(qs, many=True)
     return Response(serializer.data, status=status.HTTP_200_OK)
