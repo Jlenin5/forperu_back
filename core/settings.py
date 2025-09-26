@@ -79,6 +79,13 @@ PROJECT_APPS = [
     'apps.employee_incidents',
     'apps.stock_control',
     'apps.inventory_movements',
+    'apps.prices',
+    'apps.quotes',
+    'apps.keys',
+    'apps.systems',
+    'apps.lunches',
+    'apps.lateness',
+    'apps.banners',
 ]
 
 THIRD_PARTY_APPS = [
@@ -202,7 +209,7 @@ USE_TZ = True
 STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 STATIC_URL = 'static/'
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+MEDIA_ROOT = os.path.join(BASE_DIR, 'uploads')
 MEDIA_URL = 'media/'
 
 # STATICFILES_DIRS = [
@@ -219,12 +226,16 @@ REST_FRAMEWORK = {
         '%Y-%m-%dT%H:%M:%S.%fZ',
         '%Y-%m-%dT%H:%M:%SZ',
         '%Y-%m-%d %H:%M:%S',
-        '%Y-%m-%d'
+        '%Y-%m-%d',
+        '%d/%m/%Y',
+        '%m/%d/%Y',
     ],
     'DATE_INPUT_FORMATS': [
         '%Y-%m-%d',
         '%Y-%m-%dT%H:%M:%S.%fZ',
-        '%Y-%m-%dT%H:%M:%SZ'
+        '%Y-%m-%dT%H:%M:%SZ',
+        '%d/%m/%Y',
+        '%m/%d/%Y',
     ],
     "DEFAULT_PERMISSION_CLASSES": [
         'rest_framework.permissions.IsAuthenticated',

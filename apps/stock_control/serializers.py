@@ -11,8 +11,22 @@ class StockControlSerializer(serializers.ModelSerializer):
 
   class Meta:
     model = StockControl
-    fields = '__all__'
-    read_only_fields = ('updated_at', 'created_at', 'deleted_at')
+    fields = [
+      'id',
+      'warehouse',
+      'warehouse_id',
+      'product',
+      'product_id',
+      'quantity',
+      'min_stock',
+      'max_stock',
+      'status',
+      'created_by',
+      'updated_by',
+      'created_at',
+      'updated_at',
+      'deleted_at'
+    ]
 
   def get_warehouse(self, obj):
     if obj.warehouse:

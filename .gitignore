@@ -1,0 +1,57 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+.env
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Django stuff:
+*.log
+*.pot
+*.pyc
+*.pyo
+*.mo
+*.db
+db.sqlite3
+instance/
+media/
+
+# If your Django project uses SQLite database
+*.sqlite3
+
+# Static and media files
+/staticfiles/
+/media/
+/uploads/
+/uploads/documents/
+/uploads/images/
+
+# VSCode / PyCharm / Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# MacOS
+.DS_Store
+
+# Docker
+*.pid
+*.seed
+*.pid.lock
+docker-compose.override.yml
+/.dbdata
+*.pyc
+/apps/payment_methods/migrations/__pycache__

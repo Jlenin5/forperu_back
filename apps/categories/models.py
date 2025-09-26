@@ -22,7 +22,7 @@ class Category(models.Model):
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(null=True, blank=True)
   deleted_at = models.DateTimeField(null=True, blank=True)
-
+  image_url = models.CharField(max_length=200, null=True, blank=True)
   class Meta:
     managed = True
     db_table = 'categories'

@@ -2,6 +2,7 @@ from rest_framework import serializers
 from apps.employees.models import Employee
 from apps.job_positions.serializers import JobPositionSerializer
 from apps.warehouses.serializers import WarehouseSerializer
+from datetime import date
 
 class EmployeeSerializer(serializers.ModelSerializer):
   warehouse = serializers.SerializerMethodField()
@@ -10,9 +11,34 @@ class EmployeeSerializer(serializers.ModelSerializer):
   job_position_id = serializers.IntegerField(required=False, allow_null=True)
   status = serializers.IntegerField()
 
+  lateness_records = serializers.SerializerMethodField()
+
   class Meta:
     model = Employee
-    fields = '__all__'
+    fields = [
+      'id',
+      'names',
+      'surname',
+      'second_surname',
+      'photo',
+      'warehouse',
+      'warehouse_id',
+      'document_type',
+      'document_number',
+      'birth_date',
+      'gender',
+      'email',
+      'phone',
+      'address',
+      'hire_date',
+      'job_position',
+      'job_position_id',
+      'documents',
+      'salary',
+      'salary_week',
+      'status',
+      'lateness_records',
+    ]
     read_only_fields = ('updated_at', 'created_at', 'deleted_at')
 
   def get_warehouse(self, obj):
@@ -24,3 +50,20 @@ class EmployeeSerializer(serializers.ModelSerializer):
     if obj.job_position:
       return JobPositionSerializer(obj.job_position).data
     return None
+  
+  def get_lateness_records(self, obj):
+    today = date.today()
+    # Filtrar solo registros del mes y año actual
+    records = obj.lateness_set.filter(
+        date__year=today.year,
+        date__month=today.month
+    )
+    return {
+      str(r.id): {
+        "date": str(r.date),
+        "minutes_late": r.minutes_late,
+        "lives_used": r.lives_used,
+        "discount_amount": r.discount_amount,
+      }
+      for r in records
+    }

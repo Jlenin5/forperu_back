@@ -1,15 +1,21 @@
 from django.db import models
-
+from django.db.models import Sum, Value
+from django.db.models.functions import Coalesce
 from apps.brands.models import Brand
+from apps.categories.models import Category
 from apps.units_of_measurement.models import UnitOfMeasurement
 
-class PriceProducts(models.Model):
-  name = models.CharField(max_length=50)
-  price = models.FloatField()
+class ProductManager(models.Manager):
+  def with_stock(self):
+    return self.get_queryset().annotate(
+      total_stock=Coalesce(Sum('stock_controls__current_stock'), 0)
+    )
+  
+  def with_booking(self):
+    return self.get_queryset().annotate(
+      total_booking=Coalesce(Sum('stock_controls__current_booking'), Value(0))
+    )
 
-  def __str__(self):
-    return f"{self.name}: {self.price}"
-    
 # Create your models here.
 class Product(models.Model):
   name = models.CharField(max_length=255)
@@ -58,6 +64,30 @@ class Product(models.Model):
   updated_at = models.DateTimeField(null=True, blank=True)
   deleted_at = models.DateTimeField(null=True, blank=True)
 
+  categories = models.ManyToManyField(
+    Category,
+    through='ProductCategory',
+    related_name='products'
+  )
+
+  objects = ProductManager()
+
   class Meta:
     managed = True
     db_table = 'products'
+
+class ProductCategory(models.Model):
+  product = models.ForeignKey(
+    Product,
+    on_delete=models.CASCADE,
+    related_name='product_categories'
+  )
+  category = models.ForeignKey(
+    Category,
+    on_delete=models.CASCADE,
+    related_name='product_categories'
+  )
+  
+  class Meta:
+    db_table = 'product_categories'
+    unique_together = ('product', 'category')

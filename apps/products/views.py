@@ -8,31 +8,183 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from rest_framework.views import APIView
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from rest_framework.renderers import BaseRenderer
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
 from django.utils import timezone
-
-from apps.products.models import Product
-from apps.products.serializers import ProductSerializer
+from django.db.models import Sum, Value
+from django.db.models.functions import Coalesce
+from apps.prices.models import Price
+from apps.products.models import Product, ProductCategory
+from apps.products.serializers import ProductCategorySerializer, ProductSerializer
+from apps.units_of_measurement.models import UnitOfMeasurement
+from django.db import models
 from utils.parse_excel import parse_excel
 from utils.parse_csv import parse_csv
 
+MAX_LIMIT = 1000
+DEFAULT_LIMIT = 10
+
+def parse_int(value, default=None, minimum=0, maximum=None):
+  try:
+    iv = int(value)
+    if iv < minimum:
+        return minimum
+    if maximum is not None and iv > maximum:
+      return maximum
+    return iv
+  except (TypeError, ValueError):
+    return default
+
+class XLSXRenderer(BaseRenderer):
+  media_type = (
+    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+  )
+  format = "xlsx"
+  charset = None  # importante para binarios
+
+  def render(self, data, media_type=None, renderer_context=None):
+    return data
+    
 class ProductsView(APIView):
   permission_classes = [IsAuthenticated]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
 
+  def get_base_queryset(self):
+    # Evita traer blobs pesados si no son necesarios
+    qs = (
+      Product.objects
+      .filter(deleted_at__isnull=True)
+      .select_related('unit_of_measurement', 'brand')  # Incluir brand
+      .prefetch_related('categories__category')        # Prefetch más profundo
+      .annotate(
+        total_stock=Coalesce(Sum('stock_controls__current_stock'), Value(0)),
+        total_booking=Coalesce(Sum('stock_controls__current_booking'), Value(0)),
+      )
+      .order_by('-id')
+      # Seleccionar solo los campos necesarios
+      .only(
+        'id', 'name', 'sku', 'description', 'handle', 'tags',
+        'featured_image', 'images', 'prices_cf', 'prices_sf', 'prices_box',
+        'featured_pcf', 'featured_psf', 'featured_pbox', 'quantity_in_box',
+        'cost', 'tax_rate', 'quantity', 'width', 'height', 'depth',
+        'liters', 'weight', 'barcode', 'rating', 'extra_shipping_fee',
+        'status', 'created_by', 'updated_by', 'created_at', 'updated_at',
+        'deleted_at', 'brand_id', 'unit_of_measurement_id'
+      )
+    )
+    return qs
+
   def get(self, request, format=None):
-    products = Product.objects.filter(deleted_at__isnull=True)
-    serializer = ProductSerializer(products, many=True)
-    return Response(serializer.data, status=status.HTTP_200_OK)
+    qs = self.get_base_queryset()
+
+    # --- parámetros de paginación ---
+    limit = parse_int(request.query_params.get('limit'), DEFAULT_LIMIT, minimum=1, maximum=MAX_LIMIT)
+    offset = parse_int(request.query_params.get('offset'), None, minimum=0)
+    after_id = parse_int(request.query_params.get('after_id'), None, minimum=0)
+    
+    # --- parámetros de filtrado/búsqueda ---
+    search = request.query_params.get('search', '').strip()
+    sku = request.query_params.get('sku', '').strip()
+    name = request.query_params.get('name', '').strip()
+    category = request.query_params.get('category', '').strip()
+    unit_of_measurement = request.query_params.get('unit_of_measurement', '').strip()
+
+    # Aplicar filtros individuales primero (más eficiente)
+    if sku:
+      qs = qs.filter(sku__icontains=sku)
+    
+    if name:
+      qs = qs.filter(name__icontains=name)
+    
+    if category:
+      qs = qs.filter(categories__name__icontains=category)
+    
+    if unit_of_measurement:
+      # Buscar por ID o nombre de la unidad de medida
+      try:
+        # Intentar buscar por ID si es numérico
+        unit_id = int(unit_of_measurement)
+        qs = qs.filter(unit_of_measurement__id=unit_id)
+      except ValueError:
+        # Buscar por nombre si no es numérico
+        qs = qs.filter(unit_of_measurement__name__icontains=unit_of_measurement)
+
+    # Búsqueda general (solo si no hay filtros específicos)
+    if search and not any([sku, name, category, unit_of_measurement]):
+      qs = qs.filter(
+        models.Q(sku__icontains=search) |
+        models.Q(name__icontains=search) |
+        models.Q(description__icontains=search) |
+        models.Q(categories__name__icontains=search) |
+        models.Q(unit_of_measurement__name__icontains=search)
+      ).distinct()
+
+    total = qs.count()
+
+    # Cursor por after_id (más eficiente/estable en datasets enormes)
+    if after_id is not None:
+      page_qs = qs.filter(id__gt=after_id)[:limit]
+    # Paginación clásica por offset
+    elif offset is not None:
+      page_qs = qs[offset: offset + limit]
+    else:
+      # default: primeros N
+      page_qs = qs[:limit]
+
+    serializer = ProductSerializer(page_qs, many=True)
+    results = serializer.data
+
+    # Cálculo de "siguientes"
+    has_more = False
+    next_offset = None
+    next_after_id = None
+
+    if after_id is not None:
+      if results:
+        next_after_id = results[-1]['id']
+        # Hay más si existe algún id mayor al último retornado
+        has_more = qs.filter(id__gt=next_after_id).exists()
+    elif offset is not None:
+      next_offset = (offset or 0) + len(results)
+      has_more = next_offset < total
+    else:
+      # default: arrancaste sin offset; siguiente sería offset=len(results)
+      next_offset = len(results)
+      has_more = next_offset < total
+
+    payload = {
+      "results": results,
+      "count": total,
+      "limit": limit,
+      "has_more": has_more,
+      "next_offset": next_offset,
+      "next_after_id": next_after_id,
+    }
+
+    resp = JsonResponse(payload, status=status.HTTP_200_OK, safe=False)
+    resp['X-Total-Count'] = str(total)
+    return resp
   
+class MostSoldProductsView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+
+  def get(self, request, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True).order_by('-quantity')[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
 class ProductDetailView(APIView):
   permission_classes = [IsAuthenticated]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
 
   def get(self, request, pk, format=None):
-    product = get_object_or_404(Product, pk=pk, deleted_at__isnull=True)
+    product = get_object_or_404(Product.objects.prefetch_related('categories'), pk=pk, deleted_at__isnull=True)
     serializer = ProductSerializer(product)
     return Response(serializer.data, status=status.HTTP_200_OK)
   
@@ -44,7 +196,19 @@ class CreateProductView(APIView):
     serializer = ProductSerializer(data=request.data)
 
     if serializer.is_valid():
-      serializer.save(created_by=request.user)
+      new_product = serializer.save(created_by=request.user)
+
+      # Crear registro en prices automáticamente al crear producto
+      Price.objects.create(
+        product=new_product,
+        cost=new_product.cost,
+        price_cf=new_product.featured_pcf,
+        price_sf=new_product.featured_psf,
+        price_box=new_product.featured_pbox,
+        created_by=request.user,
+        updated_by=request.user,
+      )
+
       return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -55,13 +219,29 @@ class UpdateProductView(APIView):
 
   def put(self, request, pk, format=None):
     product = get_object_or_404(Product, pk=pk, deleted_at__isnull=True)
+    old_cost = product.cost  # Guardamos el costo antes de la actualización
+
     serializer = ProductSerializer(product, data=request.data, partial=True)
 
     if serializer.is_valid():
-      serializer.save(
+      updated_product = serializer.save(
         updated_by=request.user,
         updated_at=timezone.now()
       )
+
+      # Check if cost was modified
+      new_cost = updated_product.cost
+      if "cost" in request.data and str(old_cost) != str(new_cost):
+        Price.objects.create(
+          product=updated_product,
+          cost=new_cost,
+          price_cf=updated_product.featured_pcf,
+          price_sf=updated_product.featured_psf,
+          price_box=updated_product.featured_pbox,
+          created_by=request.user,
+          updated_by=request.user,
+        )
+
       return Response(serializer.data, status=status.HTTP_200_OK)
 
     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -90,7 +270,7 @@ class DeleteProductsByIdsView(APIView):
           status=status.HTTP_400_BAD_REQUEST
         )
 
-      # Convertir a enteros por si acaso
+      # Convertir a enteros
       try:
         product_ids = [int(id) for id in product_ids]
       except (ValueError, TypeError):
@@ -99,26 +279,32 @@ class DeleteProductsByIdsView(APIView):
           status=status.HTTP_400_BAD_REQUEST
         )
 
+      # Productos existentes (no eliminados lógicamente)
       existing_products = Product.objects.filter(
         id__in=product_ids,
         deleted_at__isnull=True
       )
 
-      if existing_products.count() != len(product_ids):
-        return Response(
-          {'error': 'Algunos IDs no existen o ya fueron eliminados'},
-          status=status.HTTP_400_BAD_REQUEST
+      # Validación: si TODOS los IDs existen
+      if existing_products.count() == len(product_ids):
+        # Eliminar físicamente
+        deleted_count, _ = existing_products.delete()
+        return Response({
+          'message': f'{deleted_count} productos eliminados físicamente',
+          'deleted_count': deleted_count,
+          'mode': 'hard_delete'
+        }, status=status.HTTP_200_OK)
+      else:
+        # Eliminar lógicamente
+        updated = existing_products.update(
+          deleted_at=timezone.now(),
+          updated_by=request.user
         )
-
-      updated = existing_products.update(
-        deleted_at=timezone.now(),
-        updated_by=request.user
-      )
-
-      return Response({
-        'message': f'{updated} productos eliminados exitosamente',
-        'deleted_count': updated
-      }, status=status.HTTP_200_OK)
+        return Response({
+          'message': f'{updated} productos marcados como eliminados',
+          'deleted_count': updated,
+          'mode': 'soft_delete'
+        }, status=status.HTTP_200_OK)
 
     except Exception as e:
       traceback.print_exc()
@@ -127,8 +313,66 @@ class DeleteProductsByIdsView(APIView):
         status=status.HTTP_500_INTERNAL_SERVER_ERROR
       )
 
+class ProductCategoriesView(APIView):
+  permission_classes = [IsAuthenticated]
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+
+  def get(self, request, product_id, format=None):
+    product = get_object_or_404(Product, pk=product_id, deleted_at__isnull=True)
+    categories = product.product_categories.all()
+    serializer = ProductCategorySerializer(categories, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+  def post(self, request, product_id, format=None):
+    product = get_object_or_404(Product, pk=product_id, deleted_at__isnull=True)
+    category_id = request.data.get('category_id')
+    
+    if not category_id:
+      return Response(
+        {'error': 'category_id is required'},
+        status=status.HTTP_400_BAD_REQUEST
+      )
+
+    # Check if relationship already exists
+    if product.categories.filter(id=category_id).exists():
+      return Response(
+        {'error': 'This category is already assigned to the product'},
+        status=status.HTTP_400_BAD_REQUEST
+      )
+
+    product_category = ProductCategory.objects.create(
+      product=product,
+      category_id=category_id
+    )
+    
+    serializer = ProductCategorySerializer(product_category)
+    return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+  def delete(self, request, product_id, format=None):
+    product = get_object_or_404(Product, pk=product_id, deleted_at__isnull=True)
+    category_id = request.data.get('category_id')
+    
+    if not category_id:
+      return Response(
+        {'error': 'category_id is required'},
+        status=status.HTTP_400_BAD_REQUEST
+      )
+
+    product_category = get_object_or_404(
+      ProductCategory,
+      product=product,
+      category_id=category_id
+    )
+    
+    product_category.delete()
+    return Response(
+      {'message': 'Category removed from product successfully'},
+      status=status.HTTP_204_NO_CONTENT
+    )
+    
 class ExportProductsView(APIView):
   permission_classes = [IsAuthenticated]
+  renderer_classes = [XLSXRenderer]
 
   def post(self, request):
     # Decodificar el cuerpo de la solicitud para obtener los IDs
@@ -143,7 +387,7 @@ class ExportProductsView(APIView):
       if product_ids:
         products = Product.objects.filter(id__in=product_ids)
       else:
-        products = Product.objects.all()
+        products = Product.objects.filter(deleted_at__isnull=True)
     except Exception as e:
       return JsonResponse(
         {'error': 'Failed to fetch products'}, 
@@ -237,27 +481,132 @@ class ImportProductsView(APIView):
           status=400
         )
       
-      # Guardar productos en la base de datos
-      products_to_create = [
-        Product(
-          sku=product.get('sku'),
-          name=product['name'],
-          prices_cf=product.get('prices_cf', {}),
-          prices_sf=product.get('prices_sf', {}),
-          prices_box=product.get('prices_box', {}),
-          featured_pcf=product.get('featured_pcf'),
-          featured_psf=product.get('featured_psf'),
-          featured_pbox=product.get('featured_pbox'),
-          cost=product['cost'],
-          created_by_id=user_id
-        ) for product in products_data
-      ]
+      # Cargar unidades de medida
+      units = UnitOfMeasurement.objects.all()
+      shortcut_map = {u.shortcut.strip().upper(): u.id for u in units if u.shortcut}
+      name_map = {u.name.strip().upper(): u.id for u in units if u.name}
+        
+      # Obtener todos los SKUs y nombres ya registrados en BD
+      existing_products = Product.objects.values_list("sku", "name")
+      existing_skus = {sku for sku, _ in existing_products if sku}
+      existing_names = {name.lower() for _, name in existing_products if name}
       
-      Product.objects.bulk_create(products_to_create)
-      
-      response = JsonResponse({'message': 'Import successful'})
+      # Filtrar productos duplicados
+      new_products = []
+      skipped_products = []
+      restored_products = []
 
-      return response
+      for product in products_data:
+        sku = product.get("sku")
+        name = product.get("name")
+        unit_value = product.get("unit")
+
+        # Buscar producto existente por sku o name
+        existing = Product.objects.filter(
+          models.Q(sku=sku) | models.Q(name__iexact=name)
+        ).first()
+
+        # Si ya existe y está eliminado → restaurarlo
+        if existing and existing.deleted_at is not None:
+          unit_id = None
+          if unit_value:
+            unit_value = str(unit_value).strip().upper()
+            unit_id = shortcut_map.get(unit_value)
+
+          existing.deleted_at = None
+          existing.updated_at = timezone.now()
+          existing.updated_by_id = user_id
+          existing.cost = product['cost']
+          existing.unit_of_measurement_id = unit_id
+          existing.save()
+          restored_products.append(name)
+          continue
+        
+        # Si ya existe y no está eliminado → saltarlo
+        if existing and existing.deleted_at is None:
+          skipped_products.append(name)
+          continue
+
+        # Detectar unidad de medida
+        unit_id = None
+        if unit_value:
+          unit_value = str(unit_value).strip().upper()
+          unit_id = shortcut_map.get(unit_value)
+        
+        new_products.append(
+          Product(
+            sku=sku,
+            name=name,
+            unit_of_measurement_id=unit_id,
+            prices_cf=product.get('prices_cf', {}),
+            prices_sf=product.get('prices_sf', {}),
+            prices_box=product.get('prices_box', {}),
+            featured_pcf=product.get('featured_pcf'),
+            featured_psf=product.get('featured_psf'),
+            featured_pbox=product.get('featured_pbox'),
+            cost=product['cost'],
+            created_by_id=user_id
+          )
+        )
+
+      # Crear solo los que son nuevos
+      if new_products:
+        Product.objects.bulk_create(new_products)
+      
+      return JsonResponse({
+        'message': f'Importación finalizada. {len(new_products)} nuevo(s), {len(restored_products)} restaurado(s), {len(skipped_products)} omitido(s).',
+        'restored': restored_products,
+        'skipped': skipped_products  # Para que sepas cuáles se omitieron
+      })
 
     except Exception as e:
       return JsonResponse({'error': str(e)}, status=400)
+
+
+class MostRatedProductsView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True).order_by('-rating')[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+  
+class ProductCategoryView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, category_id, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True, categories__id=category_id).distinct()[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+class ProductsRelatedView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, product_id, format=None):
+    qs = Product.objects.filter(
+        deleted_at__isnull=True,
+        categories__product_categories__product_id=product_id
+      ).exclude(id=product_id).annotate(
+        shared=models.Count(
+          'categories',
+          filter=models.Q(categories__product_categories__product_id=product_id),
+          distinct=True
+        )
+      ).order_by('-shared', '-id').distinct()[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)

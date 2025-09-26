@@ -41,4 +41,11 @@ urlpatterns = [
   path('api/', include("apps.employee_incidents.urls")),
   path('api/', include("apps.stock_control.urls")),
   path('api/', include("apps.inventory_movements.urls")),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+  path('api/', include("apps.prices.urls")),
+  path('api/', include("apps.quotes.urls")),
+  path('api/', include("apps.keys.urls")),
+  path('api/', include("apps.systems.urls")),
+  path('api/', include("apps.lunches.urls")),
+  path('api/', include("apps.lateness.urls")),
+  path('api/', include("apps.banners.urls")),
+] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT) 

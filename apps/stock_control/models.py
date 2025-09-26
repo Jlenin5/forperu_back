@@ -2,7 +2,6 @@ from django.db import models
 from apps.warehouses.models import Warehouse
 from apps.products.models import Product
 
-# Create your models here.
 class StockControl(models.Model):
   warehouse = models.ForeignKey(
     Warehouse,
