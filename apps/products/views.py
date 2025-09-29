@@ -8,7 +8,7 @@ from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from rest_framework.views import APIView
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.renderers import BaseRenderer
 from rest_framework.parsers import JSONParser, FormParser, MultiPartParser
@@ -186,6 +186,18 @@ class ProductsView(APIView):
     resp['X-Total-Count'] = str(total)
     return resp
   
+class MostSoldProductsView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+
+  def get(self, request, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True).order_by('-quantity')[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
 class ProductDetailView(APIView):
   permission_classes = [IsAuthenticated]
   parser_classes = [JSONParser, FormParser, MultiPartParser]
@@ -608,3 +620,52 @@ class ImportProductsView(APIView):
 
     except Exception as e:
       return JsonResponse({'error': str(e)}, status=400)
+
+
+class MostRatedProductsView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True).order_by('-rating')[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+  
+class ProductCategoryView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, category_id, format=None):
+    qs = Product.objects.filter(deleted_at__isnull=True, categories__id=category_id).distinct()[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)
+
+class ProductsRelatedView(APIView):
+  def get_permissions(self):
+    if self.request.method == 'GET':
+      return [AllowAny()]
+    return [IsAuthenticated()]
+  
+  parser_classes = [JSONParser, FormParser, MultiPartParser]
+  
+  def get(self, request, product_id, format=None):
+    qs = Product.objects.filter(
+        deleted_at__isnull=True,
+        categories__product_categories__product_id=product_id
+      ).exclude(id=product_id).annotate(
+        shared=models.Count(
+          'categories',
+          filter=models.Q(categories__product_categories__product_id=product_id),
+          distinct=True
+        )
+      ).order_by('-shared', '-id').distinct()[:10]
+    serializer = ProductSerializer(qs, many=True)
+    return Response(serializer.data, status=status.HTTP_200_OK)

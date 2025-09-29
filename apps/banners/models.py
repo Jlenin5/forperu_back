@@ -1,10 +1,11 @@
 from django.db import models
 
 # Create your models here.
-class Category(models.Model):
+class Banner(models.Model):
   name = models.CharField(max_length=200)
   description = models.TextField(null=True, blank=True)
   status = models.BooleanField(default=1)
+  image_url = models.CharField(max_length=200, null=True, blank=True)
   created_by = models.ForeignKey(
     'users.UserAccount',
     on_delete=models.CASCADE,
@@ -22,7 +23,7 @@ class Category(models.Model):
   created_at = models.DateTimeField(auto_now_add=True)
   updated_at = models.DateTimeField(null=True, blank=True)
   deleted_at = models.DateTimeField(null=True, blank=True)
-  image_url = models.CharField(max_length=200, null=True, blank=True)
+
   class Meta:
     managed = True
-    db_table = 'categories'
+    db_table = 'banners'

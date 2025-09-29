@@ -85,6 +85,7 @@ PROJECT_APPS = [
     'apps.systems',
     'apps.lunches',
     'apps.lateness',
+    'apps.banners',
     'apps.sale_orders',
     'apps.sales',
     'apps.purchase_requests',
